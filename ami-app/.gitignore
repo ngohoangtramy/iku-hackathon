@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+
+# Local environment values and credentials
+.env
+.env.*
+!.env.example
+!.env.web.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.web.example

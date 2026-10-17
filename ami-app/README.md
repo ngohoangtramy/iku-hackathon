@@ -49,7 +49,6 @@ The API runs on **http://localhost:3001**
 |---|---|
 | `DATABASE_URL` | TigerData/TimescaleDB connection string |
 | `JWT_SECRET` | Random 64-char secret for JWT signing |
-| `GOOGLE_MAPS_API_KEY` | Google Maps Platform server key |
 | `GEMINI_API_KEY` | Google Gemini API key |
 | `ELEVENLABS_API_KEY` | ElevenLabs API key |
 | `ELEVENLABS_VOICE_ID` | ElevenLabs voice ID for Ami character |
@@ -63,15 +62,14 @@ The API runs on **http://localhost:3001**
 | Variable | Description |
 |---|---|
 | `VITE_API_BASE_URL` | API base URL (default: http://localhost:3001) |
-| `VITE_GOOGLE_MAPS_API_KEY` | Google Maps JS API key |
+
+The map uses OpenStreetMap tiles, Nominatim place search, and BRouter walking directions; no map API key is required. Search is submitted explicitly and rate-limited to respect Nominatim's public-service usage policy. Keep the map attribution visible when using OpenStreetMap tiles.
 
 ---
 
 ## Demo Mode
 
 When `GEMINI_API_KEY` or `ELEVENLABS_API_KEY` are absent, the AI Call screen operates in clearly-labeled **Demo Mode** with simulated responses.
-
-When `VITE_GOOGLE_MAPS_API_KEY` is absent, the map shows a placeholder with demo safety data overlays.
 
 All simulated data is labeled with a **"Demo Data"** badge.
 
@@ -105,7 +103,7 @@ Ami surfaces **999** and **112** with explicit user confirmation. Ami never auto
 
 | Service | Tier | Estimated cost |
 |---|---|---|
-| Google Maps Platform | Pay-per-use | ~$0.005/map load, $0.017/autocomplete |
+| OpenStreetMap tiles, Nominatim search, BRouter routing | Public services | No API key or per-request charge; follow each provider's attribution and usage policies |
 | Google Gemini 1.5 Flash | Pay-per-use | ~$0.075/1M input tokens |
 | ElevenLabs | Creator+ | $22+/month or pay-per-char |
 | TigerData/Timescale | Cloud | From $75/month (provided) |

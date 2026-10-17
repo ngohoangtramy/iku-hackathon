@@ -452,7 +452,25 @@ const api = {
     },
     async getSafetyData(bbox?: string) {
       try {
-        return await request<SafetyReport[]>(`/api/v1/map/safety-data${bbox ? `?bbox=${bbox}` : ''}`);
+        const response = await request<any>(`/api/v1/map/safety-data${bbox ? `?bbox=${bbox}` : ''}`);
+        if (Array.isArray(response)) return response as SafetyReport[];
+        const features = Array.isArray(response?.features) ? response.features : [];
+        return features.flatMap((feature: any): SafetyReport[] => {
+          if (feature.geometry?.type !== 'Point' || !Array.isArray(feature.geometry.coordinates)) return [];
+          const properties = feature.properties || {};
+          const isLight = properties.featureType === 'streetlight';
+          const lightIsWorking = properties.isWorking !== false;
+          return [{
+            id: String(properties.id ?? `report-${features.indexOf(feature)}`),
+            lat: Number(feature.geometry.coordinates[1]),
+            lng: Number(feature.geometry.coordinates[0]),
+            type: isLight && lightIsWorking ? 'streetlight' : properties.featureType === 'safety_incident' ? 'incident' : 'hazard',
+            description: String(properties.description || (isLight && !lightIsWorking ? 'Reported non-working streetlight' : isLight ? 'Community streetlight report' : properties.incidentType || 'Community safety report')),
+            reportedAt: String(properties.createdAt || properties.incidentTime || new Date().toISOString()),
+            isVerified: properties.status === 'verified' || properties.status === 'resolved',
+            isSimulated: false,
+          }];
+        });
       } catch {
         return MOCK_SAFETY_REPORTS;
       }

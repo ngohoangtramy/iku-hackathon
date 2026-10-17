@@ -3,130 +3,87 @@ import { query } from '../db/connection';
 import { authenticate } from '../middleware/auth';
 import { requireTier } from '../middleware/requireTier';
 import { ratingLimit } from '../middleware/rateLimit';
-import { scoreRoute, calculateWeightedRating } from '../services/safety';
+import { calculateWeightedRating } from '../services/safety';
 
 const router = Router();
 
 // GET /routes
 router.get('/routes', async (req: Request, res: Response): Promise<void> => {
-  const { origin, destination, mode = 'walking' } = req.query;
+  const { origin = req.query.from, destination = req.query.to } = req.query;
 
   if (!origin || !destination) {
     res.status(400).json({
       success: false,
       error: 'MISSING_PARAMS',
-      message: 'Both origin and destination coordinates/names are required',
+      message: 'Both origin and destination coordinates are required as lat,lng',
     });
     return;
   }
 
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const parseCoordinate = (value: unknown): [number, number] | null => {
+    const parts = String(value).split(',').map(Number);
+    if (parts.length !== 2 || !parts.every(Number.isFinite)) return null;
+    const [lat, lng] = parts;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    return [lat, lng];
+  };
 
-  if (apiKey && apiKey !== 'AIzaSyAhy_XW5wei7IhRhiRVbqj3uQoNZbexKkI_placeholder') {
-    try {
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(
-        String(origin)
-      )}&destination=${encodeURIComponent(
-        String(destination)
-      )}&mode=${encodeURIComponent(String(mode))}&alternatives=true&key=${apiKey}`;
-
-      const response = await fetch(url);
-      const data = await response.json() as any;
-
-      if (data.status === 'OK' && data.routes?.length > 0) {
-        const enrichedRoutes = await Promise.all(
-          data.routes.map(async (route: any, index: number) => {
-            const leg = route.legs?.[0];
-            const safety = await scoreRoute(route.overview_polyline?.points, {
-              isSimulated: false,
-            });
-
-            return {
-              routeId: `google-route-${index}`,
-              summary: route.summary || `Route ${index + 1}`,
-              duration: leg?.duration?.text || '15 mins',
-              durationSeconds: leg?.duration?.value || 900,
-              distance: leg?.distance?.text || '1.2 km',
-              distanceMeters: leg?.distance?.value || 1200,
-              overviewPolyline: route.overview_polyline?.points,
-              safetyScore: safety,
-              isRecommended: index === 0,
-            };
-          })
-        );
-
-        res.json({
-          success: true,
-          data: {
-            routes: enrichedRoutes,
-            isMock: false,
-          },
-        });
-        return;
-      }
-    } catch (err: any) {
-      console.warn('[MAP] Directions API fetch failed, falling back to mock routes:', err.message);
-    }
+  const from = parseCoordinate(origin);
+  const to = parseCoordinate(destination);
+  if (!from || !to) {
+    res.status(400).json({ success: false, error: 'INVALID_COORDINATES', message: 'Coordinates must be valid lat,lng pairs.' });
+    return;
   }
 
-  // Fallback realistic mock routes with Central London coordinates
-  const mockRoute1Safety = calculateWeightedRating([
-    { rating: 5, tier_weight: 2.0, created_at: new Date() },
-    { rating: 4, tier_weight: 2.0, created_at: new Date(Date.now() - 86400000) },
-    { rating: 5, tier_weight: 1.0, created_at: new Date(Date.now() - 2 * 86400000) },
-    { rating: 4, tier_weight: 2.0, created_at: new Date(Date.now() - 4 * 86400000) },
-  ], true);
+  try {
+    const alternatives: any[] = [];
+    for (let alternative = 0; alternative < 3; alternative += 1) {
+      const params = new URLSearchParams({
+        lonlats: `${from[1]},${from[0]}|${to[1]},${to[0]}`,
+        profile: 'trekking',
+        alternativeidx: String(alternative),
+        format: 'geojson',
+      });
+      const response = await fetch(`https://brouter.de/brouter?${params.toString()}`);
+      if (!response.ok) {
+        if (alternative === 0) throw new Error(`BRouter returned HTTP ${response.status}`);
+        break;
+      }
 
-  const mockRoute2Safety = calculateWeightedRating([
-    { rating: 3, tier_weight: 1.0, created_at: new Date() },
-    { rating: 3, tier_weight: 2.0, created_at: new Date(Date.now() - 86400000) },
-    { rating: 2, tier_weight: 1.0, created_at: new Date(Date.now() - 5 * 86400000) },
-  ], true);
+      const data = await response.json() as {
+        features?: Array<{
+          geometry?: { type?: string; coordinates?: [number, number][] };
+          properties?: Record<string, unknown>;
+        }>;
+      };
+      const feature = data.features?.find((candidate) => candidate.geometry?.type === 'LineString' && candidate.geometry.coordinates?.length);
+      if (!feature?.geometry?.coordinates) break;
 
-  const mockRoutes = [
-    {
-      routeId: 'mock-lighted-corridor',
-      summary: 'Via Southampton Row & High Holborn (Well-Lit Commercial Avenue)',
-      duration: '14 mins',
-      durationSeconds: 840,
-      distance: '1.1 km',
-      distanceMeters: 1100,
-      safetyScore: mockRoute1Safety,
-      isRecommended: true,
-      features: ['Active street lighting', 'Open commercial venues', 'Continuous pedestrian activity'],
-      coordinates: [
-        [51.5298, -0.1265],
-        [51.5262, -0.1248],
-        [51.5212, -0.1225],
-        [51.5168, -0.1205],
-      ],
-    },
-    {
-      routeId: 'mock-direct-shortcut',
-      summary: 'Via Woburn Walk & Russell Square East (Direct Residential Path)',
-      duration: '11 mins',
-      durationSeconds: 660,
-      distance: '850 m',
-      distanceMeters: 850,
-      safetyScore: mockRoute2Safety,
-      isRecommended: false,
-      features: ['Shorter distance', 'Lower lighting in park sectors', 'Quiet after 8pm'],
-      coordinates: [
-        [51.5298, -0.1265],
-        [51.5250, -0.1285],
-        [51.5218, -0.1250],
-        [51.5168, -0.1205],
-      ],
-    },
-  ];
+      alternatives.push({
+        routeId: `brouter-${alternative}`,
+        summary: alternative === 0 ? 'Walking route' : `Walking alternative ${alternative}`,
+        duration: `${Math.max(1, Math.round(Number(feature.properties?.['total-time'] || 0) / 60))} mins`,
+        durationSeconds: Number(feature.properties?.['total-time']) || 0,
+        distance: `${Number(feature.properties?.['track-length']) || 0} m`,
+        distanceMeters: Number(feature.properties?.['track-length']) || 0,
+        coordinates: feature.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
+        safetyScore: calculateWeightedRating([]),
+        isRecommended: false,
+        isSimulated: false,
+        dataWarnings: ['Route geometry comes from OpenStreetMap; safety is not guaranteed.'],
+      });
+    }
 
-  res.json({
-    success: true,
-    data: {
-      routes: mockRoutes,
-      isMock: true,
-    },
-  });
+    if (!alternatives.length) {
+      res.status(404).json({ success: false, error: 'ROUTE_NOT_FOUND', message: 'No walkable route found between those coordinates.' });
+      return;
+    }
+
+    res.json({ success: true, data: { routes: alternatives, isMock: false, provider: 'BRouter / OpenStreetMap' } });
+  } catch (error) {
+    console.warn('[MAP] BRouter route request failed:', error);
+    res.status(502).json({ success: false, error: 'ROUTING_UNAVAILABLE', message: 'Walking route service is temporarily unavailable.' });
+  }
 });
 
 // GET /safety-data (GeoJSON FeatureCollection within bounding box)
