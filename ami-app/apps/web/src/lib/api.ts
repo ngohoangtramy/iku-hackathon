@@ -15,6 +15,18 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
+export async function connectBreathingMonitor(): Promise<WebSocket> {
+  const response = await request<{ success: boolean; data?: { ticket: string }; message?: string }>(
+    '/api/v1/ai-call/breathing-ticket',
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+  if (!response.data?.ticket) throw new Error(response.message || 'Could not authorize the breathing check.');
+
+  const url = new URL('/api/v1/ai-call/breathing', BASE_URL);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  return new WebSocket(url, ['ami-breathing', response.data.ticket]);
+}
+
 interface RequestOptions extends RequestInit {
   requiresAuth?: boolean;
   retries?: number;
@@ -585,7 +597,35 @@ const api = {
   places: {
     async nearby(lat: number, lng: number) {
       try {
-        return await request<Place[]>(`/api/v1/places/nearby?lat=${lat}&lng=${lng}`);
+        const response = await request<{ data: Array<{
+          id: string;
+          name: string;
+          placeType: string;
+          address: string | null;
+          lat: number;
+          lng: number;
+          isOpenLate: boolean;
+          isVerified: boolean;
+          safetyFeatures: string[];
+          isPartner: boolean;
+          offers: Array<{ title: string }>;
+          distanceKm: number;
+        }> }>(`/api/v1/places/nearby?lat=${lat}&lng=${lng}`);
+        return response.data.map((place): Place => ({
+          id: place.id,
+          name: place.name,
+          address: place.address || '',
+          lat: place.lat,
+          lng: place.lng,
+          type: place.placeType,
+          isOpen: place.isOpenLate,
+          isPartner: place.isPartner,
+          discountInfo: place.offers[0]?.title,
+          isVerified: place.isVerified,
+          isOpenLate: place.isOpenLate,
+          safetyFeatures: place.safetyFeatures,
+          distanceKm: place.distanceKm,
+        }));
       } catch {
         return [
           {
@@ -611,6 +651,18 @@ const api = {
             isPartner: true,
             discountInfo: 'Security staffed 24/7',
             rating: 4.9
+          },
+          {
+            id: 'plc_03',
+            name: 'The Brunswick Restaurant',
+            address: '1 Brunswick Square, London WC1N 1AF',
+            lat: 51.5235,
+            lng: -0.1238,
+            type: 'restaurant',
+            isOpen: false,
+            isPartner: false,
+            isVerified: true,
+            distanceKm: 1.8,
           }
         ];
       }

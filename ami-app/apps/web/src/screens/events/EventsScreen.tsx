@@ -96,10 +96,7 @@ export const EventsScreen: React.FC = () => {
       <div className="hero-pink">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
           <div>
-            <span style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.9, fontWeight: 700 }}>
-              Campus & Community
-            </span>
-            <h1 style={{ fontSize: '28px', color: 'white', marginTop: '4px' }}>Discover Events</h1>
+            <h1 style={{ fontSize: '25px', color: 'white', marginTop: '4px' }}>Events</h1>
           </div>
           {/* Host Event Button (Tier 2 feature) */}
           {(user?.tier ?? 0) >= 2 && (
@@ -163,6 +160,7 @@ export const EventsScreen: React.FC = () => {
           <button
             key={filter}
             onClick={() => setSelectedDateFilter(filter)}
+            className={`ami-date-tab ${selectedDateFilter === filter ? 'is-selected' : ''}`}
             style={{
               flex: 1,
               padding: '8px 12px',
@@ -255,7 +253,7 @@ export const EventsScreen: React.FC = () => {
                       letterSpacing: '0.5px',
                     }}
                   >
-                    {theme.icon} {event.category.replace('_', ' ')}
+                    {event.category.replace('_', ' ')}
                   </span>
 
                   {event.isFree ? (

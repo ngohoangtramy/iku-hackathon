@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, ShieldCheck, X, Check } from 'lucide-react';
+import { ShieldCheck, Wind } from 'lucide-react';
 
 interface DistressConsentSheetProps {
   isOpen: boolean;
@@ -26,26 +26,22 @@ export const DistressConsentSheet: React.FC<DistressConsentSheetProps> = ({
               width: '38px',
               height: '38px',
               borderRadius: '12px',
-              background: '#FEF3C7',
-              color: '#D97706',
+              background: '#FCE7F3',
+              color: '#BE185D',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <AlertTriangle size={22} />
+            <Wind size={22} />
           </div>
           <div>
             <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1A1A2E' }}>
-              About Distress Detection
+              Breathing check
             </h3>
-            <span style={{ fontSize: '12px', color: '#D97706', fontWeight: 700 }}>
-              Experimental Safety Feature
-            </span>
           </div>
         </div>
 
-        {/* Limitations List */}
         <div
           style={{
             background: '#F9FAFB',
@@ -54,40 +50,15 @@ export const DistressConsentSheet: React.FC<DistressConsentSheetProps> = ({
             padding: '16px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '10px',
-            fontSize: '13px',
+            fontSize: '14px',
             color: '#374151',
             lineHeight: 1.45,
             marginBottom: '20px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <span style={{ color: '#D97706', fontWeight: 700 }}>•</span>
-            <span><strong>May produce false alarms</strong> (e.g. dropping phone, sudden jogging).</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <span style={{ color: '#D97706', fontWeight: 700 }}>•</span>
-            <span><strong>Cannot reliably detect danger</strong> or replace calling 999/112 in real threats.</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <span style={{ color: '#059669', fontWeight: 700 }}>•</span>
-            <span><strong>Zero facial recognition:</strong> Does not create biometric profiles or track identity.</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <span style={{ color: '#374151', fontWeight: 700 }}>•</span>
-            <span>Monitors for rapid phone drops, sudden shaking, and prolonged camera obstruction only.</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <span style={{ color: '#059669', fontWeight: 700 }}>•</span>
-            <span><strong>Private on-device processing:</strong> No video or audio is stored on servers or saved.</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <span style={{ color: '#374151', fontWeight: 700 }}>•</span>
-            <span>You can disable this anytime in your call or profile settings.</span>
-          </div>
+          Live camera frames will be sent to Ami's API and processed using SmartSpectra for up to 90 seconds. Keep your face and upper chest in view. Ami does not save the frames or readings. This is a wellness estimate, not a medical or safety assessment. Five or more readings averaging 30 breaths/min or above will prompt a check-in only.
         </div>
 
-        {/* Buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <button
             onClick={onConsent}
@@ -95,7 +66,7 @@ export const DistressConsentSheet: React.FC<DistressConsentSheetProps> = ({
             style={{ gap: '8px' }}
           >
             <ShieldCheck size={18} />
-            Enable (Experimental)
+            Start breathing check
           </button>
 
           <button

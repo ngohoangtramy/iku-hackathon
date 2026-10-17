@@ -1,48 +1,72 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  PhoneOff, 
-  Mic, 
-  MicOff, 
-  Video, 
-  VideoOff, 
-  Volume2, 
-  VolumeX, 
-  Minimize2, 
-  Sparkles, 
-  ShieldAlert, 
-  AlertTriangle,
-  Send,
-  Camera
-} from 'lucide-react';
+import {
+  ConversationProvider,
+  useConversationControls,
+  useConversationInput,
+  useConversationMode,
+  useConversationStatus,
+} from '@elevenlabs/react';
+import { Mic, MicOff, PhoneOff, Video, VideoOff, Minimize2, ShieldAlert } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import api from '../../lib/api';
-import { AmiAvatar } from './AmiAvatar';
+import { AdamAvatar } from './AdamAvatar';
 import { DistressConsentSheet } from './DistressConsentSheet';
 import { DistressOverlay } from './DistressOverlay';
 import { EmergencySheet } from '../emergency/EmergencySheet';
+import { connectBreathingMonitor } from '../../lib/api';
 import toast from 'react-hot-toast';
 
-export const AmiCallScreen: React.FC = () => {
+const ADAM_AGENT_ID = 'agent_9301m54rkhavej6b26s0fbfdgc7j';
+
+export const AmiCallScreen: React.FC = () => (
+  <ConversationProvider agentId={ADAM_AGENT_ID}>
+    <AdamCallSession />
+  </ConversationProvider>
+);
+
+const AdamCallSession: React.FC = () => {
   const navigate = useNavigate();
   const { setEmergencyOpen, isEmergencyOpen } = useStore();
+  const { startSession, endSession } = useConversationControls();
+  const { isMuted, setMuted } = useConversationInput();
+  const { isSpeaking, isListening } = useConversationMode();
+  const { status, message: voiceStatusMessage } = useConversationStatus();
 
   const [callDuration, setCallDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [distressEnabled, setDistressEnabled] = useState(false);
+  const [breathingStatus, setBreathingStatus] = useState<'off' | 'starting' | 'active'>('off');
   const [showDistressConsent, setShowDistressConsent] = useState(false);
   const [showDistressAlert, setShowDistressAlert] = useState(false);
-
-  const [transcript, setTranscript] = useState<{ sender: 'user' | 'ami'; text: string }[]>([
-    { sender: 'ami', text: "Hi Sarah! I'm Leo, your Ami companion. Where are you walking right now? I'm right here with you." }
-  ]);
-  const [userPrompt, setUserPrompt] = useState('');
+  const [cameraUnavailable, setCameraUnavailable] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hasStartedSession = useRef(false);
+  const monitorSocket = useRef<WebSocket | null>(null);
+  const captureTimer = useRef<number | null>(null);
+  const userStoppedMonitor = useRef(false);
+  const monitorAttempt = useRef(0);
+
+  const stopFrameCapture = useCallback(() => {
+    if (captureTimer.current !== null) {
+      window.clearInterval(captureTimer.current);
+      captureTimer.current = null;
+    }
+  }, []);
+
+  const stopBreathingCheck = useCallback(() => {
+    monitorAttempt.current += 1;
+    userStoppedMonitor.current = true;
+    stopFrameCapture();
+    const socket = monitorSocket.current;
+    monitorSocket.current = null;
+    setBreathingStatus('off');
+    if (!socket) return;
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'stop' }));
+    }
+    socket.close();
+  }, [stopFrameCapture]);
 
   // Call timer counter
   useEffect(() => {
@@ -55,6 +79,7 @@ export const AmiCallScreen: React.FC = () => {
   // Web camera initialization with simulated fallback
   useEffect(() => {
     let stream: MediaStream | null = null;
+    setCameraUnavailable(false);
     if (isVideoOn && navigator.mediaDevices?.getUserMedia) {
       navigator.mediaDevices
         .getUserMedia({ video: { facingMode: 'user' }, audio: false })
@@ -65,8 +90,10 @@ export const AmiCallScreen: React.FC = () => {
           }
         })
         .catch(() => {
-          // Camera access unavailable or blocked in sandboxed iframe — fallback to simulation
+          setCameraUnavailable(true);
         });
+    } else if (isVideoOn) {
+      setCameraUnavailable(true);
     }
 
     return () => {
@@ -76,6 +103,176 @@ export const AmiCallScreen: React.FC = () => {
     };
   }, [isVideoOn]);
 
+  useEffect(() => {
+    if (!isVideoOn && breathingStatus !== 'off') stopBreathingCheck();
+  }, [isVideoOn, breathingStatus, stopBreathingCheck]);
+
+  useEffect(() => () => stopBreathingCheck(), [stopBreathingCheck]);
+
+  const startBreathingCheck = useCallback(async () => {
+    const video = videoRef.current;
+    if (!isVideoOn || !video || !video.videoWidth || !video.videoHeight) {
+      toast.error('Turn on your camera before starting a breathing check.');
+      return;
+    }
+
+    const attempt = ++monitorAttempt.current;
+    userStoppedMonitor.current = false;
+    setBreathingStatus('starting');
+
+    let socket: WebSocket;
+    try {
+      socket = await connectBreathingMonitor();
+    } catch (error) {
+      if (attempt === monitorAttempt.current && !userStoppedMonitor.current) {
+        setBreathingStatus('off');
+        toast.error(error instanceof Error ? error.message : 'Could not start the breathing check.');
+      }
+      return;
+    }
+
+    if (attempt !== monitorAttempt.current || userStoppedMonitor.current) {
+      socket.close();
+      return;
+    }
+    monitorSocket.current = socket;
+
+    let completed = false;
+    socket.onopen = () => {
+      if (attempt !== monitorAttempt.current) return;
+      socket.send(JSON.stringify({ type: 'consent', accepted: true }));
+    };
+    socket.onmessage = (event) => {
+      if (attempt !== monitorAttempt.current || monitorSocket.current !== socket) return;
+      let message: {
+        type?: string;
+        message?: string;
+        hint?: string;
+        needsCheckIn?: boolean;
+        enoughSamples?: boolean;
+      };
+      try {
+        message = JSON.parse(String(event.data)) as typeof message;
+      } catch {
+        toast.error('Received an invalid breathing check response.');
+        stopBreathingCheck();
+        return;
+      }
+
+      if (message.type === 'ready') {
+        setBreathingStatus('active');
+        toast('Breathing check started. Keep your face and upper chest in view.');
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, 640 / video.videoWidth, 720 / video.videoHeight);
+        canvas.width = Math.max(1, Math.floor(video.videoWidth * scale));
+        canvas.height = Math.max(1, Math.floor(video.videoHeight * scale));
+        const context = canvas.getContext('2d', { willReadFrequently: false });
+        if (!context) {
+          toast.error('Camera frames could not be prepared.');
+          stopBreathingCheck();
+          return;
+        }
+        let framePending = false;
+        captureTimer.current = window.setInterval(() => {
+          if (
+            attempt !== monitorAttempt.current ||
+            framePending ||
+            socket.readyState !== WebSocket.OPEN ||
+            socket.bufferedAmount > 1_500_000
+          ) return;
+          const currentVideo = videoRef.current;
+          if (!currentVideo || !currentVideo.videoWidth || !currentVideo.videoHeight) return;
+
+          framePending = true;
+          context.drawImage(currentVideo, 0, 0, canvas.width, canvas.height);
+          const timestampUs = performance.now() * 1000;
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              framePending = false;
+              return;
+            }
+            void blob.arrayBuffer().then((image) => {
+              if (attempt !== monitorAttempt.current || socket.readyState !== WebSocket.OPEN) return;
+              const packet = new Uint8Array(12 + image.byteLength);
+              const header = new DataView(packet.buffer);
+              header.setUint16(0, canvas.width, true);
+              header.setUint16(2, canvas.height, true);
+              header.setFloat64(4, timestampUs, true);
+              packet.set(new Uint8Array(image), 12);
+              socket.send(packet);
+            }).catch(() => {
+              if (attempt === monitorAttempt.current) {
+                toast.error('A camera frame could not be sent.');
+                stopBreathingCheck();
+              }
+            }).finally(() => {
+              framePending = false;
+            });
+          }, 'image/jpeg', 0.75);
+        }, 1000 / 15);
+        return;
+      }
+
+      if (message.type === 'validation' && message.hint) {
+        toast(message.hint);
+        return;
+      }
+
+      if (message.type === 'completed') {
+        completed = true;
+        stopFrameCapture();
+        monitorSocket.current = null;
+        setBreathingStatus('off');
+        if (message.needsCheckIn) {
+          setShowDistressAlert(true);
+        } else if (message.enoughSamples) {
+          toast('Breathing check complete');
+        } else {
+          toast('Not enough clear readings for a check-in');
+        }
+        return;
+      }
+
+      if (message.type === 'error') {
+        toast.error(message.message || 'Breathing check could not continue.');
+        stopBreathingCheck();
+      }
+    };
+    socket.onerror = () => {
+      if (attempt !== monitorAttempt.current || monitorSocket.current !== socket) return;
+      if (!userStoppedMonitor.current) {
+        toast.error('Breathing check is unavailable right now. Try again shortly.');
+      }
+      stopBreathingCheck();
+    };
+    socket.onclose = () => {
+      if (attempt !== monitorAttempt.current) return;
+      stopFrameCapture();
+      if (monitorSocket.current === socket) monitorSocket.current = null;
+      setBreathingStatus('off');
+      if (!completed && !userStoppedMonitor.current) {
+        toast.error('Breathing check ended before completion.');
+      }
+    };
+  }, [isVideoOn, stopBreathingCheck, stopFrameCapture]);
+
+  const startAdamCall = useCallback(() => {
+    setVoiceError('');
+    try {
+      startSession({
+        onError: (message) => setVoiceError(message || 'Could not connect to Adam. Check microphone access and try again.'),
+      });
+    } catch (error) {
+      setVoiceError(error instanceof Error ? error.message : 'Could not connect to Adam. Check microphone access and try again.');
+    }
+  }, [startSession]);
+
+  useEffect(() => {
+    if (hasStartedSession.current) return;
+    hasStartedSession.current = true;
+    startAdamCall();
+  }, [startAdamCall]);
+
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -83,40 +280,23 @@ export const AmiCallScreen: React.FC = () => {
   };
 
   const handleEndCall = () => {
-    toast('Call ended safely');
-    navigate('/map');
-  };
-
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim()) return;
-
-    setTranscript((prev) => [...prev, { sender: 'user', text }]);
-    setUserPrompt('');
-    setIsListening(false);
-    setIsSpeaking(true);
-
+    stopBreathingCheck();
     try {
-      const response = await api.aiCall.sendMessage('session_active', text);
-      setTimeout(() => {
-        setTranscript((prev) => [...prev, { sender: 'ami', text: response.reply }]);
-        // Stop speaking animation after 3.5 seconds
-        setTimeout(() => setIsSpeaking(false), 3500);
-      }, 900);
-    } catch {
-      setIsSpeaking(false);
+      endSession();
+      toast('Call ended');
+      navigate('/map');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not end the voice call.');
     }
-  };
-
-  const triggerSimulatedSpeech = (phrase: string) => {
-    handleSendMessage(phrase);
   };
 
   return (
     <div
+      className="ami-call-screen"
       style={{
         position: 'relative',
         width: '100%',
-        height: '100vh',
+        height: '100dvh',
         background: 'linear-gradient(180deg, #1A1A2E 0%, #2D1B36 50%, #4A1942 100%)',
         display: 'flex',
         flexDirection: 'column',
@@ -145,7 +325,7 @@ export const AmiCallScreen: React.FC = () => {
               fontSize: '11px',
             }}
           >
-            AI Companion • DEMO
+            Adam • ElevenLabs
           </span>
         </div>
 
@@ -167,7 +347,7 @@ export const AmiCallScreen: React.FC = () => {
 
         {/* Minimize Button */}
         <button
-          onClick={() => navigate('/map')}
+          onClick={() => void handleEndCall()}
           style={{
             background: 'rgba(255, 255, 255, 0.15)',
             border: 'none',
@@ -186,161 +366,38 @@ export const AmiCallScreen: React.FC = () => {
         </button>
       </div>
 
-      {/* User Self-View Front Camera Card (Top-Right Floating 100x140) */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '70px',
-          right: '16px',
-          width: '100px',
-          height: '140px',
-          borderRadius: '18px',
-          overflow: 'hidden',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
-          border: '2px solid rgba(255, 255, 255, 0.4)',
-          background: '#2B2B3E',
-          zIndex: 40,
-        }}
-      >
+      <div className="ami-call-stage">
         {isVideoOn ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
-          />
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="ami-call-user-video"
+            />
+            {cameraUnavailable && <div className="ami-camera-message">Camera unavailable</div>}
+          </>
         ) : (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#9CA3AF',
-              fontSize: '10px',
-              gap: '4px',
-            }}
-          >
-            <VideoOff size={20} />
-            <span>Camera Off</span>
+          <div className="ami-camera-off">
+            <VideoOff size={28} />
+            <span>Camera off</span>
           </div>
         )}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '4px',
-            left: '4px',
-            background: 'rgba(0,0,0,0.6)',
-            borderRadius: '6px',
-            padding: '2px 6px',
-            fontSize: '9px',
-            color: 'white',
-          }}
-        >
-          You
-        </div>
-      </div>
-
-      {/* Main Avatar Area */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          padding: '10px 0',
-        }}
-      >
-        <AmiAvatar
-          isSpeaking={isSpeaking}
-          isListening={isListening}
-          emotion="happy"
-        />
-
-        <div style={{ textAlign: 'center', marginTop: '8px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'white', marginBottom: '2px' }}>
-            Leo • Ami AI Companion
-          </h2>
-          <span style={{ fontSize: '12px', color: '#FFB3CC', fontWeight: 600 }}>
-            {isSpeaking ? 'Speaking...' : isListening ? 'Listening to you...' : 'Connected • Keeping you company'}
-          </span>
-        </div>
-
-        {/* Speech indicator waveform */}
-        {isSpeaking && (
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', height: '18px', marginTop: '8px' }}>
-            {[14, 22, 10, 26, 18, 12, 24, 16].map((h, i) => (
-              <div
-                key={i}
-                style={{
-                  width: '3px',
-                  height: `${h}px`,
-                  background: '#FF6B9D',
-                  borderRadius: '2px',
-                  animation: 'pulse 0.6s ease-in-out infinite alternate',
-                  animationDelay: `${i * 0.08}s`,
-                }}
-              />
-            ))}
+        <div className="ami-companion-pip">
+          <AdamAvatar isSpeaking={false} isListening={status === 'connected'} />
+          <div className="ami-companion-caption">
+            <strong>Adam</strong>
+            <span>{isSpeaking ? 'Speaking' : isListening ? 'Listening' : status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting' : 'Voice call'}</span>
           </div>
-        )}
-      </div>
-
-      {/* Live Transcript Bubble */}
-      <div style={{ padding: '0 20px', zIndex: 30 }}>
-        <div
-          style={{
-            background: 'rgba(0, 0, 0, 0.45)',
-            backdropFilter: 'blur(12px)',
-            borderRadius: '20px',
-            padding: '12px 16px',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            maxHeight: '90px',
-            overflowY: 'auto',
-          }}
-        >
-          {transcript.slice(-2).map((item, idx) => (
-            <div key={idx} style={{ fontSize: '13px', lineHeight: 1.4, marginBottom: '4px' }}>
-              <strong style={{ color: item.sender === 'ami' ? '#FFB3CC' : '#93C5FD' }}>
-                {item.sender === 'ami' ? 'Leo: ' : 'You: '}
-              </strong>
-              <span>{item.text}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Demo Fast Speaking Suggestions */}
-        <div className="scroll-x" style={{ paddingTop: '8px' }}>
-          {[
-            "I'm walking past the station now",
-            "Can you stay with me until I reach home?",
-            "It looks a bit dark ahead",
-            "What well-lit route should I take?",
-          ].map((phrase, i) => (
-            <button
-              key={i}
-              onClick={() => triggerSimulatedSpeech(phrase)}
-              style={{
-                background: 'rgba(255, 255, 255, 0.15)',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                color: 'white',
-                padding: '5px 12px',
-                borderRadius: '100px',
-                fontSize: '11px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              💬 "{phrase}"
-            </button>
-          ))}
         </div>
       </div>
+      {(voiceError || (status === 'error' ? voiceStatusMessage : '')) && (
+        <div className="ami-call-error" role="alert">
+          <span>{voiceError || voiceStatusMessage || 'Could not connect to Adam. Check microphone access and try again.'}</span>
+          <button onClick={startAdamCall} type="button">Retry</button>
+        </div>
+      )}
 
       {/* Controls Bar at Bottom */}
       <div
@@ -355,25 +412,30 @@ export const AmiCallScreen: React.FC = () => {
           zIndex: 40,
         }}
       >
-        {/* Mute toggle */}
         <button
           onClick={() => {
-            setIsMuted(!isMuted);
-            toast(isMuted ? 'Microphone on' : 'Microphone muted');
+            try {
+              setMuted(!isMuted);
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : 'Could not change microphone state.');
+            }
           }}
+          disabled={status !== 'connected'}
           style={{
             width: '46px',
             height: '46px',
             borderRadius: '50%',
-            background: isMuted ? '#EF4444' : 'rgba(255, 255, 255, 0.18)',
+            background: isMuted ? '#D85E9D' : 'rgba(255, 255, 255, 0.18)',
             border: 'none',
             color: 'white',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: 'pointer',
+            cursor: status === 'connected' ? 'pointer' : 'not-allowed',
+            opacity: status === 'connected' ? 1 : 0.5,
           }}
-          title={isMuted ? 'Unmute' : 'Mute'}
+          title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+          aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
         >
           {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
         </button>
@@ -421,49 +483,31 @@ export const AmiCallScreen: React.FC = () => {
           <PhoneOff size={28} />
         </button>
 
-        {/* Speaker toggle */}
-        <button
-          onClick={() => setIsSpeakerOn(!isSpeakerOn)}
-          style={{
-            width: '46px',
-            height: '46px',
-            borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.18)',
-            border: 'none',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-          title={isSpeakerOn ? 'Speaker on' : 'Speaker muted'}
-        >
-          {isSpeakerOn ? <Volume2 size={20} /> : <VolumeX size={20} />}
-        </button>
-
         {/* Distress Alerts Toggle / Test */}
         <button
           onClick={() => {
-            if (!distressEnabled) {
+            if (breathingStatus === 'active') {
+              stopBreathingCheck();
+            } else if (breathingStatus === 'off') {
               setShowDistressConsent(true);
-            } else {
-              // Trigger test simulated distress alert
-              setShowDistressAlert(true);
             }
           }}
+          disabled={breathingStatus === 'starting'}
           style={{
             width: '46px',
             height: '46px',
             borderRadius: '50%',
-            background: distressEnabled ? '#D97706' : 'rgba(255, 255, 255, 0.18)',
+            background: breathingStatus === 'active' ? '#D85E9D' : 'rgba(255, 255, 255, 0.18)',
             border: 'none',
             color: 'white',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: 'pointer',
+            cursor: breathingStatus === 'starting' ? 'wait' : 'pointer',
+            opacity: breathingStatus === 'starting' ? 0.6 : 1,
           }}
-          title={distressEnabled ? 'Tap to test distress detection' : 'Enable distress detection'}
+          title={breathingStatus === 'active' ? 'Stop breathing check' : 'Start breathing check'}
+          aria-label={breathingStatus === 'active' ? 'Stop breathing check' : 'Start breathing check'}
         >
           <ShieldAlert size={20} />
         </button>
@@ -473,9 +517,8 @@ export const AmiCallScreen: React.FC = () => {
       <DistressConsentSheet
         isOpen={showDistressConsent}
         onConsent={() => {
-          setDistressEnabled(true);
           setShowDistressConsent(false);
-          toast.success('Experimental distress detection activated for this call');
+          startBreathingCheck();
         }}
         onCancel={() => setShowDistressConsent(false)}
       />

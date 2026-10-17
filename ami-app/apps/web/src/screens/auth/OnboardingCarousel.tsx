@@ -21,6 +21,7 @@ export const OnboardingCarousel: React.FC = () => {
       illustration: (
         <div style={{ position: 'relative', width: '220px', height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div
+            className="ami-auth-screen ami-onboarding-screen"
             style={{
               position: 'absolute',
               width: '180px',

@@ -92,6 +92,10 @@ export interface Place {
   isPartner: boolean;
   discountInfo?: string;
   rating?: number;
+  isVerified?: boolean;
+  isOpenLate?: boolean;
+  safetyFeatures?: string[];
+  distanceKm?: number;
 }
 
 export interface BuddyProfile {

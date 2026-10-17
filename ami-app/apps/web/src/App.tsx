@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useStore } from './store/useStore';
@@ -17,13 +17,14 @@ import { EventsScreen } from './screens/events/EventsScreen';
 import { BuddiesScreen } from './screens/buddies/BuddiesScreen';
 import { MessagesScreen } from './screens/messages/MessagesScreen';
 import { ChatScreen } from './screens/messages/ChatScreen';
-import { AmiCallScreen } from './screens/ai-call/AmiCallScreen';
 import { ProfileScreen } from './screens/profile/ProfileScreen';
 
 import { QRHostScreen } from './screens/verification/QRHostScreen';
 import { QRScanScreen } from './screens/verification/QRScanScreen';
 import { TierUpgradeCard } from './components/ui/TierUpgradeCard';
 import { BottomNav } from './components/ui/BottomNav';
+
+const AmiCallScreen = lazy(() => import('./screens/ai-call/AmiCallScreen').then(({ AmiCallScreen: Screen }) => ({ default: Screen })));
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -117,7 +118,9 @@ export const App: React.FC = () => {
             path="/ai-call"
             element={
               <ProtectedRoute>
-                <AmiCallScreen />
+                <Suspense fallback={<div className="ami-call-loading">Connecting to Adam…</div>}>
+                  <AmiCallScreen />
+                </Suspense>
               </ProtectedRoute>
             }
           />

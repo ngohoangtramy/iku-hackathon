@@ -367,7 +367,7 @@ async function seed() {
     );
 
     // 5. Nearby Places & Business Partners (Near King's Cross / Bloomsbury)
-    console.log('[SEED] Inserting 6 nearby partner places with student offers...');
+    console.log('[SEED] Inserting 8 nearby partner places with student offers...');
     const places = [
       {
         name: 'Origin Coffee Roasters Kings Cross',
@@ -440,6 +440,30 @@ async function seed() {
         partner: 'Waterstones Booksellers',
         contact: 'gowerst@waterstones.com',
         discount: { title: '10% Book & Café Bundle', pct: 10, code: 'AMI-READ10' },
+      },
+      {
+        name: 'Dishoom King’s Cross',
+        type: 'restaurant',
+        address: '5 Stable St, London N1C 4AB',
+        lat: 51.5351,
+        lng: -0.1253,
+        openLate: true,
+        features: ['well_lit', 'staffed', 'accessible_entrance'],
+        partner: 'Dishoom',
+        contact: 'community@dishoom.com',
+        discount: { title: '10% Student Dining Offer', pct: 10, code: 'AMI-DISHOOM10' },
+      },
+      {
+        name: 'The Life Goddess Restaurant',
+        type: 'restaurant',
+        address: '29 Store St, London WC1E 7DH',
+        lat: 51.5207,
+        lng: -0.1349,
+        openLate: false,
+        features: ['well_lit', 'staffed', 'busy_public_location'],
+        partner: 'The Life Goddess',
+        contact: 'hello@thelifegoddess.com',
+        discount: { title: '10% Student Dining Offer', pct: 10, code: 'AMI-LIFE10' },
       },
     ];
 

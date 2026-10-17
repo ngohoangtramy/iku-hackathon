@@ -59,6 +59,7 @@ export const SignUpScreen: React.FC = () => {
 
   return (
     <div
+      className="ami-auth-screen ami-signup-screen"
       style={{
         minHeight: '100vh',
         background: '#FFFFFF',

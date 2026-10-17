@@ -19,6 +19,7 @@ export const SplashScreen: React.FC = () => {
 
   return (
     <div
+      className="ami-auth-screen ami-splash-screen"
       style={{
         minHeight: '100vh',
         background: 'linear-gradient(160deg, #FF8DAF 0%, #FF6B9D 40%, #E8528A 80%, #C0392B 100%)',

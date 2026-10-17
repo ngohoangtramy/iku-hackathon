@@ -9,11 +9,8 @@ import {
   ArrowRight,
   Check,
   Crosshair,
-  Footprints,
-  Heart,
   Lightbulb,
   MapPin,
-  Navigation,
   PhoneCall,
   Search,
   Shield,
@@ -29,7 +26,6 @@ import { DemoBanner } from '../../components/ui/DemoBanner';
 import { EventBottomSheet } from './EventBottomSheet';
 import { HazardReportSheet } from './HazardReportSheet';
 import { EmergencySheet } from '../emergency/EmergencySheet';
-import { CATEGORY_COLORS } from './ExploreOverlay';
 import toast from 'react-hot-toast';
 import 'leaflet/dist/leaflet.css';
 
@@ -57,22 +53,29 @@ interface WalkingRoute {
   isRecommended: boolean;
 }
 
-function createPinIcon(emoji: string, variant: 'pink' | 'mint' = 'pink') {
-  const color = variant === 'mint' ? '#54B987' : '#EE6D9D';
+function createPinIcon(kind: 'event' | 'cafe' | 'restaurant' | 'destination', variant: 'pink' | 'purple' = 'pink') {
+  const color = variant === 'purple' ? '#9575CD' : '#D96BB0';
+  const symbol = kind === 'cafe'
+    ? '<path d="M5 8h12v8a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8Z"/><path d="M17 10h2a2 2 0 1 1 0 4h-2M8 4v2m4-2v2"/>'
+    : kind === 'restaurant'
+      ? '<path d="M6 3v6m-2-6v4a2 2 0 0 0 4 0V3m-2 6v12m9-18v18m0-18c3 2 3 6 0 8"/>'
+      : kind === 'destination'
+        ? '<path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>'
+        : '<path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z"/>';
   return L.divIcon({
     className: 'ami-map-pin-wrap',
-    html: `<span class="ami-map-pin" style="--pin-color:${color}"><i>${emoji}</i></span>`,
-    iconSize: [38, 44],
-    iconAnchor: [19, 40],
-    popupAnchor: [0, -36],
+    html: `<span class="ami-map-pin" style="--pin-color:${color}"><svg viewBox="0 0 24 24" aria-hidden="true">${symbol}</svg></span>`,
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    popupAnchor: [0, -19],
   });
 }
 
 const userIcon = L.divIcon({
   className: 'ami-user-pin-wrap',
   html: '<span class="ami-user-pin"><span></span></span>',
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
 });
 
 function MapViewport({
@@ -178,10 +181,9 @@ export const MapScreen: React.FC = () => {
   const [isRouting, setIsRouting] = useState(false);
   const [routes, setRoutes] = useState<WalkingRoute[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
-  const [showSteps, setShowSteps] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [safetyReports, setSafetyReports] = useState<SafetyReport[]>([]);
-  const [, setPlaces] = useState<Place[]>([]);
+  const [places, setPlaces] = useState<Place[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [selectedSafetyReport, setSelectedSafetyReport] = useState<SafetyReport | null>(null);
   const [showHazardSheet, setShowHazardSheet] = useState(false);
@@ -355,7 +357,6 @@ export const MapScreen: React.FC = () => {
     setActiveRoute(null);
     setSearchResults([]);
     setSearchError('');
-    setShowSteps(false);
     setSearchQuery('');
   };
 
@@ -371,7 +372,7 @@ export const MapScreen: React.FC = () => {
 
   return (
     <main className="ami-map-screen screen-container">
-      <DemoBanner />
+      {!isEmergencyOpen && <DemoBanner />}
 
       <div className="ami-map-canvas">
         <MapContainer
@@ -413,7 +414,7 @@ export const MapScreen: React.FC = () => {
             <Popup>{hasGps ? 'You are here' : 'Demo start location — enable location for your real position'}</Popup>
           </Marker>
           {selectedDestination && (
-            <Marker position={[selectedDestination.lat, selectedDestination.lng]} icon={createPinIcon('💗')}>
+            <Marker position={[selectedDestination.lat, selectedDestination.lng]} icon={createPinIcon('destination')}>
               <Popup>{selectedDestination.address}</Popup>
             </Marker>
           )}
@@ -433,26 +434,41 @@ export const MapScreen: React.FC = () => {
             />
           ))}
           {mapMode === 'explore' && events.map((event) => {
-            const theme = CATEGORY_COLORS[event.category] || { bg: '#EE6D9D', icon: '📍' };
             return (
               <Marker
                 key={event.id}
                 position={[event.lat, event.lng]}
-                icon={createPinIcon(theme.icon, 'mint')}
+                icon={createPinIcon('event', 'purple')}
                 eventHandlers={{ click: () => setSelectedEvent(event) }}
               />
             );
           })}
+          {mapMode === 'explore' && places
+            .filter((place) => place.type === 'cafe' || place.type === 'restaurant')
+            .map((place) => (
+              <Marker
+                key={`place-${place.id}`}
+                position={[place.lat, place.lng]}
+                icon={createPinIcon(place.type === 'restaurant' ? 'restaurant' : 'cafe', 'purple')}
+              >
+                <Popup>
+                  <strong>{place.name}</strong>
+                  <br />
+                  <span>{place.type === 'restaurant' ? 'Restaurant' : 'Cafe'}</span>
+                  {place.address && <><br />{place.address}</>}
+                </Popup>
+              </Marker>
+            ))}
         </MapContainer>
 
-        <header className="ami-map-topbar" style={{ top: isDemoBannerDismissed ? 13 : 51 }}>
+        {!isEmergencyOpen && <header className="ami-map-topbar" style={{ top: isDemoBannerDismissed ? 13 : 51 }}>
           <div className="ami-map-brandline">
-            <div className="ami-map-brand"><span className="ami-brand-flower">✿</span> ami <span className="ami-brand-dot">·</span> your city buddy</div>
+            <div className="ami-map-brand">ami</div>
             <button className="ami-sos-button" onClick={() => setEmergencyOpen(true)} aria-label="Open emergency help">
               <AlertOctagon size={16} /> help
             </button>
           </div>
-          <div className="ami-map-headline">Where to, lovely?</div>
+          <div className="ami-map-headline">Find a place</div>
           <form className="ami-map-search" onSubmit={searchLocation}>
             <Search size={19} aria-hidden="true" />
             <input
@@ -485,18 +501,18 @@ export const MapScreen: React.FC = () => {
             </div>
           )}
           {searchError && <div className="ami-search-error"><AlertTriangle size={15} />{searchError}</div>}
-        </header>
+        </header>}
 
-        <div className="ami-map-mode-switch" aria-label="Map layer">
+        {!isEmergencyOpen && <div className="ami-map-mode-switch" aria-label="Map layer">
           <button className={mapMode === 'safety' ? 'is-selected' : ''} onClick={() => setMapMode('safety')}>
             <Shield size={15} /> Safety
           </button>
           <button className={mapMode === 'explore' ? 'is-selected' : ''} onClick={() => setMapMode('explore')}>
             <Sparkles size={15} /> Explore
           </button>
-        </div>
+        </div>}
 
-        <div className={`ami-map-floating-actions ${routes.length ? 'has-route' : ''}`}>
+        {!isEmergencyOpen && <div className={`ami-map-floating-actions ${routes.length ? 'has-route' : ''}`}>
           <button className="ami-map-fab ami-recenter-fab" onClick={handleRecenter} title="Centre on my location" aria-label="Centre on my location">
             <Crosshair size={20} />
           </button>
@@ -506,50 +522,42 @@ export const MapScreen: React.FC = () => {
           <button className="ami-map-fab ami-call-fab" onClick={() => navigate('/ai-call')} title="Call Ami" aria-label="Call Ami">
             <PhoneCall size={21} />
           </button>
-        </div>
+        </div>}
 
-        {selectedSafetyReport && (
+        {!isEmergencyOpen && selectedSafetyReport && (
           <aside className="ami-report-card">
             <div className="ami-report-card-icon">{selectedSafetyReport.type === 'streetlight' ? <Lightbulb size={18} /> : <AlertTriangle size={18} />}</div>
             <div className="ami-report-card-copy">
               <strong>{selectedSafetyReport.type.replace('_', ' ')} report</strong>
               <span>{selectedSafetyReport.description}</span>
-              <small>Community report · please verify conditions</small>
             </div>
             <button aria-label="Close report details" onClick={() => setSelectedSafetyReport(null)}><X size={18} /></button>
           </aside>
         )}
 
-        {isRouting && (
-          <div className="ami-routing-toast"><span className="ami-mini-spinner" />Finding a lovely walking route…</div>
+        {!isEmergencyOpen && isRouting && (
+          <div className="ami-routing-toast"><span className="ami-mini-spinner" />Finding route…</div>
         )}
 
-        {!routes.length && !isRouting && !selectedDestination && (
-          <div className="ami-map-nudge"><span>🌷</span><div><strong>Little steps, more confidence</strong><small>Search a place to see a walking route and local reports.</small></div></div>
-        )}
-
-        {selectedRoute && !isRouting && (
-          <section className={`ami-route-sheet ${showSteps ? 'is-expanded' : ''}`}>
+        {!isEmergencyOpen && selectedRoute && !isRouting && (
+          <section className="ami-route-sheet">
             <div className="ami-sheet-handle" />
             <div className="ami-route-heading">
-              <div className="ami-route-heading-icon"><Footprints size={21} /></div>
               <div className="ami-route-heading-copy">
-                <div className="ami-route-eyebrow"><span className="ami-sparkle-dot">✦</span> Your walking plan</div>
                 <strong>{selectedDestination?.address ? simplifyAddress(selectedDestination.address) : 'Your destination'}</strong>
               </div>
               <button className="ami-route-close" onClick={clearRoute} aria-label="Clear route"><X size={18} /></button>
             </div>
 
             <div className="ami-route-summary">
-              <div><strong>{formatDuration(selectedRoute.durationSeconds)}</strong><span>walking</span></div>
-              <i />
-              <div><strong>{formatDistance(selectedRoute.distanceMeters)}</strong><span>distance</span></div>
-              <div className="ami-route-score"><span className="ami-score-flower">✿</span><div><strong>{selectedRoute.safetyConfidence === 'insufficient' ? 'No data yet' : `${selectedRoute.safetyScore}/100`}</strong><span>community reports</span></div></div>
+              <div><strong>{formatDuration(selectedRoute.durationSeconds)}</strong></div>
+              <span>·</span>
+              <div><strong>{formatDistance(selectedRoute.distanceMeters)}</strong></div>
             </div>
 
             {routes.length > 1 && (
               <div className="ami-route-options">
-                <div className="ami-section-label">Pick your path <span>({routes.length} options)</span></div>
+                <div className="ami-section-label">Routes</div>
                 <div className="ami-route-option-list">
                   {routes.map((route, index) => (
                     <button
@@ -559,36 +567,34 @@ export const MapScreen: React.FC = () => {
                       aria-pressed={route.id === selectedRoute.id}
                     >
                       <span className="ami-option-check">{route.id === selectedRoute.id ? <Check size={14} /> : <span>{index + 1}</span>}</span>
-                      <span className="ami-option-copy"><strong>{index === 0 && route.isRecommended ? 'Best match' : route.label}</strong><small>{formatDuration(route.durationSeconds)} · {formatDistance(route.distanceMeters)}</small></span>
-                      <span className="ami-option-rating">{route.safetyConfidence === 'insufficient' ? '—' : route.safetyScore}</span>
+                      <span className="ami-option-copy"><strong>{index === 0 && route.isRecommended ? 'Recommended' : `Route ${index + 1}`}</strong><small>{formatDuration(route.durationSeconds)} · {formatDistance(route.distanceMeters)}</small></span>
                     </button>
                   ))}
                 </div>
-                <p className="ami-route-disclaimer">Suggestions are based on nearby community reports, not a safety guarantee. Stay aware and trust your instincts.</p>
               </div>
             )}
 
-            <button className="ami-steps-toggle" onClick={() => setShowSteps((shown) => !shown)}>
-              {showSteps ? 'Hide route details' : 'See route details'} <ArrowRight size={15} className={showSteps ? 'rotate-down' : ''} />
-            </button>
-            {showSteps && <p className="ami-step-detail"><Navigation size={15} /> Follow the highlighted walking path to your destination.</p>}
             <button className="ami-start-route" onClick={() => toast.success('Route selected — stay aware and enjoy your walk!')}>
-              <Heart size={17} fill="currentColor" /> Let’s go
+              Start route
             </button>
           </section>
         )}
       </div>
 
-      <EventBottomSheet event={selectedEvent} onClose={() => setSelectedEvent(null)} onGetDirections={handleEventDestination} />
-      <HazardReportSheet
-        isOpen={showHazardSheet}
-        onClose={() => setShowHazardSheet(false)}
-        currentLat={userPosition[0]}
-        currentLng={userPosition[1]}
-        onReportSubmitted={() => { api.map.getSafetyData().then(setSafetyReports); }}
-      />
+      {!isEmergencyOpen && (
+        <EventBottomSheet event={selectedEvent} onClose={() => setSelectedEvent(null)} onGetDirections={handleEventDestination} />
+      )}
+      {!isEmergencyOpen && (
+        <HazardReportSheet
+          isOpen={showHazardSheet}
+          onClose={() => setShowHazardSheet(false)}
+          currentLat={userPosition[0]}
+          currentLng={userPosition[1]}
+          onReportSubmitted={() => { api.map.getSafetyData().then(setSafetyReports); }}
+        />
+      )}
       <EmergencySheet isOpen={isEmergencyOpen} onClose={() => setEmergencyOpen(false)} />
-      <BottomNav />
+      {!isEmergencyOpen && <BottomNav />}
     </main>
   );
 };

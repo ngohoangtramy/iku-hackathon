@@ -28,7 +28,7 @@ export const DemoBanner: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, paddingRight: '8px' }}>
         <AlertTriangle size={15} color="#D97706" style={{ flexShrink: 0 }} />
         <span>
-          <strong style={{ color: '#B45309' }}>Demo Mode:</strong> Safety data is simulated for London demonstrator. Always use your own judgment and contact emergency services if in danger.
+          <strong style={{ color: '#8B5D73' }}>Demo data</strong>
         </span>
       </div>
       <button

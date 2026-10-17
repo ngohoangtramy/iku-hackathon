@@ -4,11 +4,28 @@ import { query } from '../db/connection';
 import { authenticate } from '../middleware/auth';
 import { getAmiResponse } from '../providers/gemini';
 import { synthesizeSpeech } from '../providers/elevenlabs';
+import { createBreathingMonitorTicket } from '../services/breathingMonitor';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'ami-default-development-secret-key-32-chars-min';
 
 router.use(authenticate);
+
+router.post('/breathing-ticket', (req: Request, res: Response): void => {
+  if (!process.env.SMARTSPECTRA_API_KEY) {
+    res.status(503).json({
+      success: false,
+      error: 'BREATHING_CHECK_UNAVAILABLE',
+      message: 'Breathing checks are not configured.',
+    });
+    return;
+  }
+
+  res.status(201).json({
+    success: true,
+    data: { ticket: createBreathingMonitorTicket(req.user!.sub) },
+  });
+});
 
 // POST /ai-call/session — Start AI call session & issue short-lived 2h session token
 router.post('/session', async (req: Request, res: Response): Promise<void> => {

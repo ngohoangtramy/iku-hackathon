@@ -21,6 +21,7 @@ import { messagesRouter } from './routes/messages';
 import { aiCallRouter } from './routes/aiCall';
 import { emergencyRouter } from './routes/emergency';
 import { distressRouter } from './routes/distress';
+import { attachBreathingMonitor } from './services/breathingMonitor';
 
 export const app = express();
 const PORT = process.env.PORT || 3001;
@@ -116,6 +117,7 @@ if (process.env.NODE_ENV !== 'test') {
     logDatabaseStatus();
     console.log(`===============================================`);
   });
+  attachBreathingMonitor(server);
 
   const gracefulShutdown = () => {
     console.log('[API] Gracefully shutting down...');

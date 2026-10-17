@@ -52,6 +52,7 @@ The API runs on **http://localhost:3001**
 | `GEMINI_API_KEY` | Google Gemini API key |
 | `ELEVENLABS_API_KEY` | ElevenLabs API key |
 | `ELEVENLABS_VOICE_ID` | ElevenLabs voice ID for Ami character |
+| `SMARTSPECTRA_API_KEY` | Presage SmartSpectra key for opt-in breathing checks |
 | `ALLOWED_UNI_DOMAINS` | Comma-separated university email domains |
 | `QR_TOKEN_EXPIRY_SECONDS` | QR code lifetime (default: 30) |
 | `QR_PROXIMITY_THRESHOLD_METERS` | GPS proximity for QR scan (default: 15) |
@@ -63,15 +64,19 @@ The API runs on **http://localhost:3001**
 |---|---|
 | `VITE_API_BASE_URL` | API base URL (default: http://localhost:3001) |
 
-The map uses OpenStreetMap tiles, Nominatim place search, and BRouter walking directions; no map API key is required. Search is submitted explicitly and rate-limited to respect Nominatim's public-service usage policy. Keep the map attribution visible when using OpenStreetMap tiles.
+The map uses OpenStreetMap tiles, Nominatim place search, and BRouter walking directions; no map API key is required. Search is submitted explicitly and rate-limited to respect Nominatim's public-service usage policy. The Explore layer also shows nearby curated cafes and restaurants from the `nearby_places` API. Keep the map attribution visible when using OpenStreetMap tiles.
 
 ---
 
 ## Demo Mode
 
-When `GEMINI_API_KEY` or `ELEVENLABS_API_KEY` are absent, the AI Call screen operates in clearly-labeled **Demo Mode** with simulated responses.
+When `GEMINI_API_KEY` or `ELEVENLABS_API_KEY` are absent, text chat and server-generated speech use simulated responses.
 
 All simulated data is labeled with a **"Demo Data"** badge.
+
+The AI Call screen uses the ElevenLabs React SDK to automatically start the Adam Conversational AI voice session when the call screen opens. The call view is loaded on demand. Configure the agent's voice/persona in the ElevenLabs dashboard.
+
+The optional call breathing check requires `SMARTSPECTRA_API_KEY` and an API host on a SmartSpectra-supported Node.js platform. It streams camera frames over an authenticated WebSocket to the API, where the SmartSpectra Node SDK processes them in memory for up to 90 seconds. Ami does not store the frames or readings. The SDK supports one active measurement per API process. At least five breathing-rate readings with a mean of 30 breaths/min or higher trigger a user-confirmed check-in; the measurement does not contact emergency services or diagnose a condition. The check only starts after the user consents and can be stopped at any time. Use HTTPS/WSS in production.
 
 ---
 

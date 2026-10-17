@@ -230,7 +230,7 @@ export interface SafetyIncidentReport {
 export interface NearbyPlace {
   id: string;
   name: string;
-  place_type: 'cafe' | 'pharmacy' | 'station' | 'library' | 'hospital' | 'police_station' | 'shop';
+  place_type: 'cafe' | 'restaurant' | 'pharmacy' | 'station' | 'library' | 'hospital' | 'police_station' | 'shop';
   address?: string | null;
   lat: number;
   lng: number;

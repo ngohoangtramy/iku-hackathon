@@ -55,7 +55,7 @@ export const DistressOverlay: React.FC<DistressOverlayProps> = ({
       </h3>
 
       <p style={{ fontSize: '13px', color: '#6B7280', marginBottom: '18px', lineHeight: 1.4 }}>
-        A sudden movement or drop was detected on your phone.
+        Your breathing rate was elevated during this check.
       </p>
 
       {/* 3 Buttons */}
@@ -90,7 +90,7 @@ export const DistressOverlay: React.FC<DistressOverlayProps> = ({
 
       {/* Disclaimer */}
       <p style={{ fontSize: '10px', color: '#9CA3AF', marginTop: '12px' }}>
-        This may be a false alarm. Distress detection is experimental.
+        This wellness estimate is not a medical or safety assessment.
       </p>
     </div>
   );

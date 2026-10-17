@@ -9,6 +9,7 @@ async function runMigrations() {
   const migrations = [
     '001_schema.sql',
     '002_hypertables.sql',
+    '003_restaurant_places.sql',
   ];
 
   const client = await pool.connect();

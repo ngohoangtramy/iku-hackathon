@@ -13,7 +13,6 @@ export const BottomNav: React.FC = () => {
 
   return (
     <nav className="bottom-nav">
-      {/* Tab 1: Map */}
       <button
         type="button"
         className={`nav-item ${currentPath === '/map' ? 'active' : ''}`}
@@ -24,7 +23,6 @@ export const BottomNav: React.FC = () => {
         <span>Map</span>
       </button>
 
-      {/* Tab 2: Events */}
       <button
         type="button"
         className={`nav-item ${currentPath === '/events' ? 'active' : ''}`}
@@ -35,18 +33,17 @@ export const BottomNav: React.FC = () => {
         <span>Events</span>
       </button>
 
-      {/* Tab 3: Center FAB - AI Call */}
       <button
         type="button"
-        className="nav-fab"
+        className={`nav-item nav-call-item ${currentPath === '/ai-call' ? 'active' : ''}`}
         onClick={() => navigate('/ai-call')}
-        aria-label="Ami Companion Call"
-        title="Start Ami AI Companion Call"
+        aria-label="Call Adam"
+        title="Call Adam"
       >
-        <PhoneCall size={24} />
+        <PhoneCall size={21} strokeWidth={2} />
+        <span>Adam</span>
       </button>
 
-      {/* Tab 4: Buddies */}
       <button
         type="button"
         className={`nav-item ${currentPath.startsWith('/buddies') ? 'active' : ''}`}
@@ -78,7 +75,6 @@ export const BottomNav: React.FC = () => {
         <span>Buddies</span>
       </button>
 
-      {/* Tab 5: Profile */}
       <button
         type="button"
         className={`nav-item ${currentPath === '/profile' ? 'active' : ''}`}
