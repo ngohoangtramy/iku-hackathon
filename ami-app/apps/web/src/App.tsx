@@ -23,6 +23,7 @@ import { QRHostScreen } from './screens/verification/QRHostScreen';
 import { QRScanScreen } from './screens/verification/QRScanScreen';
 import { TierUpgradeCard } from './components/ui/TierUpgradeCard';
 import { BottomNav } from './components/ui/BottomNav';
+import { ElevenLabsCallWidget } from './components/ElevenLabsCallWidget';
 
 const AmiCallScreen = lazy(() => import('./screens/ai-call/AmiCallScreen').then(({ AmiCallScreen: Screen }) => ({ default: Screen })));
 
@@ -118,7 +119,7 @@ export const App: React.FC = () => {
             path="/ai-call"
             element={
               <ProtectedRoute>
-                <Suspense fallback={<div className="ami-call-loading">Connecting to Adam…</div>}>
+                <Suspense fallback={<div className="ami-call-loading">Opening Adam’s call…</div>}>
                   <AmiCallScreen />
                 </Suspense>
               </ProtectedRoute>
@@ -154,6 +155,7 @@ export const App: React.FC = () => {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <ElevenLabsCallWidget />
       </BrowserRouter>
 
       {/* Global Toast Notifications */}

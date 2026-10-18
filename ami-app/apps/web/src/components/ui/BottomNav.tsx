@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Map, Calendar, HeartHandshake, User, PhoneCall, Lock } from 'lucide-react';
+import { Map, Calendar, HeartHandshake, User, Lock } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
 export const BottomNav: React.FC = () => {
@@ -31,17 +31,6 @@ export const BottomNav: React.FC = () => {
       >
         <Calendar size={22} strokeWidth={currentPath === '/events' ? 2.5 : 2} />
         <span>Events</span>
-      </button>
-
-      <button
-        type="button"
-        className={`nav-item nav-call-item ${currentPath === '/ai-call' ? 'active' : ''}`}
-        onClick={() => navigate('/ai-call')}
-        aria-label="Call Adam"
-        title="Call Adam"
-      >
-        <PhoneCall size={21} strokeWidth={2} />
-        <span>Adam</span>
       </button>
 
       <button

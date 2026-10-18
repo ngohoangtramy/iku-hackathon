@@ -133,8 +133,8 @@ export const ChatScreen: React.FC = () => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
-            onClick={() => navigate('/ai-call')}
-            title="Start Call"
+            onClick={() => navigate('/map')}
+            title="Open Adam call widget on the map"
             style={{
               background: 'var(--color-primary-bg)',
               border: 'none',

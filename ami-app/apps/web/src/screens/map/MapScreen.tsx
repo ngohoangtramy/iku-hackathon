@@ -1,5 +1,4 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import { CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import {
@@ -11,7 +10,6 @@ import {
   Crosshair,
   Lightbulb,
   MapPin,
-  PhoneCall,
   Search,
   Shield,
   ShieldAlert,
@@ -161,7 +159,6 @@ function useGeolocation() {
 }
 
 export const MapScreen: React.FC = () => {
-  const navigate = useNavigate();
   const {
     mapMode,
     setMapMode,
@@ -519,8 +516,14 @@ export const MapScreen: React.FC = () => {
           <button className="ami-map-fab ami-report-fab" onClick={() => setShowHazardSheet(true)} title="Report a safety issue" aria-label="Report a safety issue">
             <ShieldAlert size={20} />
           </button>
-          <button className="ami-map-fab ami-call-fab" onClick={() => navigate('/ai-call')} title="Call Ami" aria-label="Call Ami">
-            <PhoneCall size={21} />
+          <button
+            className="ami-map-fab ami-call-fab"
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('ami-open-call-widget'))}
+            title="Call Adam"
+            aria-label="Call Adam"
+          >
+            <img src="/images/call-adam-icon.png" alt="" aria-hidden="true" />
           </button>
         </div>}
 

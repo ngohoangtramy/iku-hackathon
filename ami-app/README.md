@@ -74,9 +74,9 @@ When `GEMINI_API_KEY` or `ELEVENLABS_API_KEY` are absent, text chat and server-g
 
 All simulated data is labeled with a **"Demo Data"** badge.
 
-The AI Call screen uses the ElevenLabs React SDK to automatically start the Adam Conversational AI voice session when the call screen opens. The call view is loaded on demand. Configure the agent's voice/persona in the ElevenLabs dashboard.
+The ElevenLabs ConvAI widget for agent `agent_3601m572qh6xedjakhn24g36v275` is hidden until the map's Call Adam button is pressed. That button opens the widget's call/consent flow; starting the conversation opens the Adam call screen while keeping the widget session mounted. The widget handles its own consent and microphone access. The call screen shows the supplied Adam portrait (`apps/web/public/images/adam.png`) and does not request camera access. The agent's first message must be configured in the ElevenLabs dashboard: this agent rejects the widget's `override-first-message` option. Widget audio and transcripts are not exposed to the app. Leaving the call screen ends the widget session and removes it. Configure the agent's public widget access and opening greeting in the ElevenLabs dashboard.
 
-The optional call breathing check requires `SMARTSPECTRA_API_KEY` and an API host on a SmartSpectra-supported Node.js platform. It streams camera frames over an authenticated WebSocket to the API, where the SmartSpectra Node SDK processes them in memory for up to 90 seconds. Ami does not store the frames or readings. The SDK supports one active measurement per API process. At least five breathing-rate readings with a mean of 30 breaths/min or higher trigger a user-confirmed check-in; the measurement does not contact emergency services or diagnose a condition. The check only starts after the user consents and can be stopped at any time. Use HTTPS/WSS in production.
+The SmartSpectra breathing-monitor API remains available but is not currently exposed in the call screen; the current call does not request or stream camera frames.
 
 ---
 
@@ -118,7 +118,6 @@ Ami surfaces **999** and **112** with explicit user confirmation. Ami never auto
 ## Features Requiring Real-Device Testing
 
 - Microphone capture and ElevenLabs audio streaming
-- Front-camera self-view in AI call
 - QR code camera scanning
 - `tel:` emergency dial intent
 - Geolocation accuracy for QR proximity check
